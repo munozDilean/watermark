@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Watermark Generator</title>
+    <style>
+        /* Add your CSS styles here */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .form-container {
+            max-width: 500px;
+            margin: auto;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .drop-zone {
+            border: 2px dashed #ccc;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+        }
+        #file-input {
+            display: none;
+        }
+        .submit-btn {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .loading-screen {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+        }
+        .download-btn {
+            display: none;
+            background-color: #008CBA;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="loading-screen" id="loadingScreen">
+    <p>Loading...</p>
+</div>
+
+<div class="form-container">
+    <h2> Test</h2>
+    <h2>Watermark Generator</h2>
+    <form id="emailForm" onsubmit="submitForm(event)">
+        <div class="form-group">
+            <label for="senderEmail">Sender Email:</label>
+            <input type="email" id="senderEmail" name="senderEmail" required>
+        </div>
+        <div class="form-group">
+            <label for="senderCompany">Sender Company:</label>
+            <input type="text" id="senderCompany" name="senderCompany" required>
+        </div>
+        <div class="form-group">
+            <label for="receiverEmail">Receiver Email:</label>
+            <input type="email" id="receiverEmail" name="receiverEmail" required>
+        </div>
+        <div class="form-group">
+            <label for="receiverCompany">Receiver Company:</label>
+            <input type="text" id="receiverCompany" name="receiverCompany" required>
+        </div>
+        <div class="form-group">
+            <label for="fileInput">File:</label>
+            <div class="drop-zone" onclick="document.getElementById('fileInput').click()">
+                Drop files here or click to upload.
+            </div>
+            <input type="file" id="fileInput" name="fileInput" style="display: none;" onchange="displayFileName()">
+            <p id="fileName"></p>
+        </div>
+        <button type="submit" class="submit-btn">Submit</button>
+    </form>
+    <button class="download-btn" onclick="downloadFile()">Download Processed File</button>
+</div>
+
+<script>
+      function displayFileName() {
+        var input = document.getElementById('fileInput');
+        var fileName = document.getElementById('fileName');
+        fileName.textContent = input.files[0].name;
+    }
+
+    function submitForm(event) {
+        event.preventDefault();  // Prevent the default form submission
+
+        var form = document.getElementById('emailForm');
+        var loadingScreen = document.getElementById('loadingScreen');
+
+        // Show loading screen
+        loadingScreen.style.display = 'flex';
+
+        // Create FormData object to store form data
+        var formData = new FormData(form);
+
+        // Access the file from the FormData object
+        var fileInput = document.getElementById('fileInput');
+        var file = fileInput.files[0];
+
+        // Check if the file type is MP4 or PDF
+        if (file != null && (file.type === 'video/mp4' || file.type === 'application/pdf')) {
+            var url = file.type === 'video/mp4' ? 'http://localhost:5000/video' : 'http://localhost:5000/pdf';
+
+            // Create Fetch API request
+            fetch(url, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    // Show the download button on successful response
+                    document.querySelector('.download-btn').style.display = 'block';
+                } else {
+                    throw new Error('Failed to process the file');
+                }
+                return response.text();
+            })
+            .then(data => {
+                // Handle the response data as needed
+                console.log(data);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            })
+            .finally(() => {
+                // Hide loading screen
+                loadingScreen.style.display = 'none';
+            });
+        } else {
+            // Display an error message or take appropriate action
+            alert('Unsupported file type. Please upload an MP4 or PDF file.');
+            // Hide loading screen
+            loadingScreen.style.display = 'none';
+        }
+    }
+
+    function downloadFile() {
+    // Access the file from the FormData object
+    var fileInput = document.getElementById('fileInput');
+    var file = fileInput.files[0];
+
+    // Check if the file type is MP4 or PDF
+    if (file != null && (file.type === 'video/mp4' || file.type === 'application/pdf')) {
+        var url = file.type === 'video/mp4' ? 'http://localhost:5000/video?' : 'http://localhost:5000/pdf?';
+        var nameOfFile = file.name.replace(".", "_wm.");
+        fetch(url+ new URLSearchParams({'fileName':nameOfFile}), {
+            method: 'GET',
+        })
+        .then(response => {
+            if (response.ok) {
+                // Get the filename from the Content-Disposition header
+                const contentDisposition = response.headers.get('Content-Disposition');
+                const filenameMatch = contentDisposition && contentDisposition.match(/filename="(.+?)"/);
+                const filename = filenameMatch ? filenameMatch[1] : 'downloaded_file';
+
+                // Convert the response blob to a Blob URL
+                return response.blob().then(blob => {
+                    const blobUrl = URL.createObjectURL(blob);
+
+                    // Create a hidden anchor element
+                    const anchor = document.createElement('a');
+                    anchor.href = blobUrl;
+                    anchor.download = filename;
+
+                    // Programmatically click the anchor to trigger the download
+                    anchor.click();
+
+                    // Clean up the Blob URL
+                    URL.revokeObjectURL(blobUrl);
+                });
+            } else {
+                throw new Error('Failed to download the file');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    }
+}
+
+</script>
+
+</body>
+</html>
